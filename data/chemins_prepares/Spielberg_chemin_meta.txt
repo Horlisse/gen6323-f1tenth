@@ -1,0 +1,6 @@
+chemin : ferme (le dernier point rejoint le premier)
+points : 3433
+longueur totale [m] : 343.042420
+methode : gauss s=0.3 m, pas 0.10 m, depuis Spielberg_centerline.csv (b95c4ef)
+cap : difference centree des points voisins
+genere le : 2026-11-03 17:23

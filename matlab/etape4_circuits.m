@@ -19,14 +19,15 @@ attendu = struct( ...
     'Spielberg',   struct('n', 864,  'S0', 343.323, 'psi0', -2.87898), ...
     'Silverstone', struct('n', 1178, 'S0', 457.925, 'psi0',  0.94440));
 ds = 0.10;                                % pas de rééchantillonnage [m]
-candidats = {'aucun', 0; 'gauss', 0.5; 'gauss', 1.5};   % méthode, sigma [m]
-comparer_commande = true;                 % essais PP et Stanley à 2 m/s par candidat
+candidats = {'aucun', 0; 'gauss', 0.3; 'gauss', 0.5; 'gauss', 1.0};   % méthode, sigma [m]
+comparer_commande = false;
 gains_pp = struct('l0', 0.6, 'tau', 0.3); % réglages de DÉMONSTRATION (le gel se fait à l'étape 6)
 gains_st = struct('ks', 2.0, 'v0', 1.0);
 
 % CHOIX RETENU : à fixer par l'équipe APRÈS lecture du tableau, puis figer.
 % Le même chemin préparé servira aux deux lois, à toutes les vitesses et à ROS 2.
-choix = struct('methode', 'gauss', 'sigma', 0.5);
+choix = struct('methode', 'gauss', 'sigma', 0.3);
+%choix = struct('methode', 'gauss', 'sigma', 0.5);
 
 if ~isfolder(racine)
     error(['Données introuvables : %s\nRécupérer le sous-module : ' ...
