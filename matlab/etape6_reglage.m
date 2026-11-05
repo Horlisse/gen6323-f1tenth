@@ -2,11 +2,12 @@
 %   Même budget pour les deux lois : grille 6 x 6 = 36 combinaisons, 6 essais chacune.
 %   Critère d'admissibilité et score fixés AVANT les résultats (plan commité).
 %
-% Lancer depuis matlab/ :  addpath(genpath(pwd)); etape6_reglage
-% mode_rapide = true : grille 2 x 2 (coins) pour tester le script et chronométrer.
-clear; close all;
+% Lancer depuis matlab/ :
+%   addpath(genpath(pwd)); etape6_reglage                       % réglage complet
+%   addpath(genpath(pwd)); mode_rapide = true; etape6_reglage   % test : grille 2 x 2 (coins)
+clearvars -except mode_rapide; close all;
+if ~exist('mode_rapide', 'var'), mode_rapide = false; end
 P = params_vehicule();
-mode_rapide = false;
 
 % ---------------------------------------------------------------- grilles (plan, section 1)
 G.pp      = struct('noms', {{'l0', 'tau'}}, 'v1', [0.3 0.45 0.6 0.8 1.0 1.3], 'v2', [0 0.1 0.2 0.3 0.45 0.6]);
@@ -20,7 +21,10 @@ ici = fileparts(mfilename('fullpath'));
 racine = fullfile(ici, '..', 'data', 'f1tenth_racetracks');
 huit = reference_source('huit');
 spl_ref = reference_source('Spielberg', racine);
-spl_C = charger_chemin_prepare('Spielberg', fullfile(ici, '..', 'data', 'chemins_prepares'));
+% Chemin préparé recalculé en mémoire avec le prétraitement FIGÉ à l'étape 4
+% (gauss sigma = 0,3 m, pas de 0,10 m) : identique, octet pour octet, au CSV exporté
+% (vérifié par git). Évite la lecture du CSV, instable sur MATLAB Drive.
+spl_C = creer_chemin(lisser_gauss(spl_ref.P, 0.3, 0.10), true);
 q_huit = pose_initiale('huit', huit);
 E = struct('nom', {'E1 huit 1 m/s', 'E2 huit 2 m/s', 'E3 huit 3 m/s', 'E4 huit récup 2 m/s', ...
                    'E5 Spielberg 2 m/s', 'E6 huit 2 m/s retard 100 ms'}, ...
@@ -111,6 +115,7 @@ if ~isfolder(sortie), mkdir(sortie); end
 stamp = char(datetime('now', 'Format', 'yyyyMMdd_HHmmss'));
 if mode_rapide, stamp = [stamp '_rapide']; end
 save(fullfile(sortie, ['etape6_reglage_' stamp '.mat']), 'res', 'G', 'E', 'choix', 'mode_rapide');
+fprintf('\nMode : %s\n', ternaire(mode_rapide, 'RAPIDE (test, ne sert pas au choix)', 'COMPLET'));
 lignes = {};
 for il = 1:2
     loi = lois{il}; g = G.(loi); M = res.(loi);
@@ -126,4 +131,8 @@ if isfield(choix, 'pp') && isfield(choix, 'stanley') && ~mode_rapide
     fprintf('\nÀ reporter dans reglages_figes.m après vérification par l''équipe :\n');
     fprintf('G.pp      = struct(''l0'', %g, ''tau'', %g);\n', choix.pp.l0, choix.pp.tau);
     fprintf('G.stanley = struct(''ks'', %g, ''v0'', %g);\n', choix.stanley.ks, choix.stanley.v0);
+end
+
+function s = ternaire(c, a, b)
+if c, s = a; else, s = b; end
 end
