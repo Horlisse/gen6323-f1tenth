@@ -20,5 +20,8 @@ setup(
     maintainer_email='equipe@uqo.ca',
     description='Nœud de suivi Pure Pursuit pour F1TENTH',
     license='MIT',
-    entry_points={'console_scripts': ['suivi_pp = gen6323_controle.suivi_pp:main']},
+    entry_points={'console_scripts': [
+        'suivi_pp = gen6323_controle.suivi_pp:main',
+        'verifier_depart = gen6323_controle.verifier_depart:main',
+    ]},
 )

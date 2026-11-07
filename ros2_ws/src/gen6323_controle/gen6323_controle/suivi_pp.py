@@ -7,6 +7,8 @@ Mode synchrone (async_mode: false, annexe C.3) : une commande par NOUVEL état s
 répétées du même horodatage ignorées ; l'échange démarre à la première odométrie.
 Surveillance : odométrie périmée détectée sur une horloge RÉELLE (STEADY), qui avance même si
 la simulation est bloquée. Arrêt explicite à la fermeture du nœud (Ctrl + C).
+Protections de validité : réinitialisation externe (/initialpose), autre émetteur sur /drive et
+collision déjà active au départ déclarent l'essai INVALIDE (docs/protocole_essais_ros2.md).
 Journal CSV : horodatage simulé, pose, vitesse mesurée, consignes envoyées (vc, delta_c),
 collision (mémorisée), progression, tours, temps de calcul.
 """
@@ -18,6 +20,7 @@ from datetime import datetime
 import numpy as np
 import rclpy
 from ackermann_msgs.msg import AckermannDriveStamped
+from geometry_msgs.msg import PoseWithCovarianceStamped
 from nav_msgs.msg import Odometry
 from rclpy.clock import Clock, ClockType
 from rclpy.node import Node
@@ -79,6 +82,7 @@ class NoeudSuiviPP(Node):
         self.create_subscription(Bool, '/ego_racecar/collision', self.cb_collision, 10)
         self.create_subscription(Int32, '/ego_racecar/lap_count', self.cb_tours, 10)
         self.create_subscription(Bool, '/gen6323/arret', self.cb_arret, 10)
+        self.create_subscription(PoseWithCovarianceStamped, '/initialpose', self.cb_reinitialisation, 10)
 
         # Horloge réelle pour la surveillance : elle avance même si la simulation est bloquée.
         self.horloge_reelle = Clock(clock_type=ClockType.STEADY_TIME)
@@ -88,6 +92,8 @@ class NoeudSuiviPP(Node):
         self.derniere_odom_reelle = None
         self.nb_etats = 0                 # nombre d'états simulés distincts reçus
         self.fige = False                 # fin d'essai : véhicule arrêté, plus aucune publication
+        self.invalide = ''                # motif d'invalidité ('' = essai valide)
+        self.tic_surveillance = 0
         self.debut_reel = self.horloge_reelle.now()
         self.dernier_amorcage = None
         self.collision = False
@@ -150,8 +156,25 @@ class NoeudSuiviPP(Node):
     def cb_collision(self, msg):
         if msg.data and not self.collision:
             self.collision = True                         # mémorisée jusqu'à la fin de l'essai (annexe C.3)
-            self.get_logger().error('COLLISION détectée : essai invalide, arrêt de sécurité.')
-            self.logique.arret_securite('collision')
+            if self.nb_etats == 0:
+                self.invalider('collision deja active au depart',
+                               'Collision DÉJÀ ACTIVE au départ : relancer le simulateur avant l’essai.')
+            else:
+                self.invalider('collision', 'COLLISION détectée : essai invalide, arrêt de sécurité.')
+
+    def cb_reinitialisation(self, msg):
+        if not self.fige:
+            p = msg.pose.pose.position
+            self.invalider('reinitialisation externe',
+                           f'Réinitialisation de la pose reçue sur /initialpose ({p.x:.2f} ; {p.y:.2f}) : '
+                           'essai invalide (outil de pose de Foxglove ?).')
+
+    def invalider(self, motif, message):
+        if not self.invalide:
+            self.invalide = motif
+            self.get_logger().error(message)
+        self.logique.arret_securite(motif)
+        self.publier(0.0, self.logique.dc)
 
     def cb_tours(self, msg):
         self.nb_tours = msg.data
@@ -176,6 +199,13 @@ class NoeudSuiviPP(Node):
             return
         if self.logique.arret or self.logique.termine or self.fige or self.nb_etats < 2:
             return                                        # surveillance armée après le premier pas
+        self.tic_surveillance += 1
+        if self.tic_surveillance % 20 == 0:                # toutes les secondes (minuterie de 0,05 s)
+            n = self.count_publishers('/drive')
+            if n > 1:
+                self.invalider('autre emetteur sur /drive',
+                               f'{n - 1} autre(s) émetteur(s) détecté(s) sur /drive : essai invalide.')
+                return
         age = (maintenant - self.derniere_odom_reelle).nanoseconds * 1e-9
         if age > self.delai_odom:
             self.get_logger().error(f'Odométrie périmée depuis {age:.2f} s : arrêt de sécurité.')
@@ -195,15 +225,17 @@ class NoeudSuiviPP(Node):
     def resume(self, etat):
         M = {k: np.array(v) for k, v in self.mesures.items()}
         if len(M['t']) < 2:
-            self.get_logger().warn(f'Essai terminé ({etat}) sans mesure exploitable.')
+            self.get_logger().warn(f'Essai terminé ({etat}) sans mesure exploitable'
+                                   + (f' ; ESSAI INVALIDE ({self.invalide}).' if self.invalide else '.'))
             return
         dt = np.diff(M['t']); T = M['t'][-1] - M['t'][0]
         e_rms = math.sqrt(np.sum(M['e'][1:] ** 2 * dt) / T)
         J_d = np.sum(np.diff(M['dc']) ** 2 / dt) / T
         J_v = np.sum(np.diff(M['vc']) ** 2 / dt) / T
         tc = 1e3 * M['tc']
+        verdict = 'ESSAI INVALIDE (' + self.invalide + ')' if self.invalide else 'ESSAI VALIDE'
         self.get_logger().info(
-            f'FIN ({etat}) : T = {T:.2f} s, e_RMS = {100 * e_rms:.2f} cm, e_max = {100 * M["e"].max():.2f} cm, '
+            f'{verdict} | FIN ({etat}) : T = {T:.2f} s, e_RMS = {100 * e_rms:.2f} cm, e_max = {100 * M["e"].max():.2f} cm, '
             f'J_delta = {J_d:.5f}, J_v = {J_v:.5f}, collision = {self.collision}, '
             f'calcul moyen {tc.mean():.3f} ms, 95e centile {np.percentile(tc, 95):.3f} ms, max {tc.max():.3f} ms')
         self.f_journal.flush()
