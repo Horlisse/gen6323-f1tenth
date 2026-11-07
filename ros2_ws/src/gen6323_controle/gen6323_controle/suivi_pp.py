@@ -86,6 +86,7 @@ class NoeudSuiviPP(Node):
 
         self.dernier_stamp = None
         self.derniere_odom_reelle = None
+        self.nb_etats = 0                 # nombre d'états simulés distincts reçus
         self.debut_reel = self.horloge_reelle.now()
         self.dernier_amorcage = None
         self.collision = False
@@ -110,7 +111,14 @@ class NoeudSuiviPP(Node):
         if stamp == self.dernier_stamp:
             return                                        # même état simulé : pas de nouvelle commande
         self.dernier_stamp = stamp
-        self.derniere_odom_reelle = self.horloge_reelle.now()
+        maintenant = self.horloge_reelle.now()
+        if self.nb_etats == 1:
+            # Premier pas réellement simulé : la surveillance s'arme à partir d'ici. Le premier
+            # pas peut durer plusieurs secondes (compilation Numba du simulateur au premier appel).
+            delai = (maintenant - self.derniere_odom_reelle).nanoseconds * 1e-9
+            self.get_logger().info(f'Premier pas simulé reçu après {delai:.2f} s ; surveillance armée.')
+        self.nb_etats += 1
+        self.derniere_odom_reelle = maintenant
         self.dernier_header = msg.header
         pose = msg.pose.pose
         x, y, psi = pose.position.x, pose.position.y, lacet(pose.orientation)
@@ -157,8 +165,8 @@ class NoeudSuiviPP(Node):
                 self.get_logger().info('Aucune odométrie reçue : commande nulle d’amorçage publiée.')
                 self.publier(0.0, 0.0)
             return
-        if self.logique.arret:
-            return
+        if self.logique.arret or self.nb_etats < 2:
+            return                                        # surveillance armée après le premier pas
         age = (maintenant - self.derniere_odom_reelle).nanoseconds * 1e-9
         if age > self.delai_odom:
             self.get_logger().error(f'Odométrie périmée depuis {age:.2f} s : arrêt de sécurité.')
