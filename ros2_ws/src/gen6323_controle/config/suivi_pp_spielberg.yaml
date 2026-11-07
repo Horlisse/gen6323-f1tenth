@@ -1,0 +1,13 @@
+# Paramètres du nœud de suivi pour Spielberg (réglages GELÉS, matlab/reglages_figes.m)
+suivi_pp:
+  ros__parameters:
+    use_sim_time: true
+    chemin_csv: '~/gen6323-f1tenth/data/chemins_prepares/Spielberg_chemin.csv'
+    ref_csv: '~/gen6323_data/f1tenth_racetracks/Spielberg/Spielberg_centerline.csv'
+    l0: 0.3
+    tau: 0.2
+    v_cible: 2.0
+    tours: 1
+    delai_odom_s: 0.5
+    journal_dir: '~/gen6323-f1tenth/resultats'
+    essai: 'spielberg_nominal'
