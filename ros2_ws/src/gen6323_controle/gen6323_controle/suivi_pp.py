@@ -87,6 +87,7 @@ class NoeudSuiviPP(Node):
         self.dernier_stamp = None
         self.derniere_odom_reelle = None
         self.nb_etats = 0                 # nombre d'états simulés distincts reçus
+        self.fige = False                 # fin d'essai : véhicule arrêté, plus aucune publication
         self.debut_reel = self.horloge_reelle.now()
         self.dernier_amorcage = None
         self.collision = False
@@ -107,6 +108,8 @@ class NoeudSuiviPP(Node):
 
     # ------------------------------------------------------------------ rappels
     def cb_odom(self, msg):
+        if self.fige:
+            return                                        # essai terminé : la simulation reste figée
         stamp = (msg.header.stamp.sec, msg.header.stamp.nanosec)
         if stamp == self.dernier_stamp:
             return                                        # même état simulé : pas de nouvelle commande
@@ -137,6 +140,12 @@ class NoeudSuiviPP(Node):
         if (r['termine'] or r['arret']) and not self.fin_annoncee:
             self.fin_annoncee = True
             self.resume(etat)
+        if (r['termine'] or r['arret']) and abs(v) < 0.05:
+            # Véhicule arrêté : on cesse de publier. En mode synchrone, la simulation n'avance plus.
+            self.fige = True
+            self.f_journal.flush()
+            self.get_logger().info(f'Véhicule arrêté (v = {v:.3f} m/s) : fin des publications. '
+                                   'Ctrl + C pour fermer le nœud.')
 
     def cb_collision(self, msg):
         if msg.data and not self.collision:
@@ -165,7 +174,7 @@ class NoeudSuiviPP(Node):
                 self.get_logger().info('Aucune odométrie reçue : commande nulle d’amorçage publiée.')
                 self.publier(0.0, 0.0)
             return
-        if self.logique.arret or self.nb_etats < 2:
+        if self.logique.arret or self.logique.termine or self.fige or self.nb_etats < 2:
             return                                        # surveillance armée après le premier pas
         age = (maintenant - self.derniere_odom_reelle).nanoseconds * 1e-9
         if age > self.delai_odom:
