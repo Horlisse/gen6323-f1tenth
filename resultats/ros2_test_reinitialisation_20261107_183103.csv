@@ -1,0 +1,2 @@
+t_sim_s,x_m,y_m,psi_rad,v_mesuree_mps,vc_mps,dc_rad,e_ref_m,s_tot_ref_m,collision,nb_tours,etat,t_calcul_ms
+1.610000000,-9.204077040,-1.810832395,2.065861464,0.025088,0.000000000,0.000000000,0.640609,3.180511,1,0,arret: collision deja active au depart,35.4568
