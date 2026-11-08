@@ -1,0 +1,2 @@
+t_sim_s,x_m,y_m,psi_rad,v_mesuree_mps,vc_mps,dc_rad,e_ref_m,s_tot_ref_m,collision,nb_tours,etat,t_calcul_ms
+68.979999999,-51.637698699,51.614737413,-0.658182979,0.025243,0.000000000,0.000000000,63.250433,3.180511,1,0,arret: collision,1.0381
